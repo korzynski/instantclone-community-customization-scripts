@@ -94,6 +94,21 @@ DATASTORE_NAME=$(esxcli storage vmfs extent list | awk 'NR==3{print $1}')
 NEW_DATASTORE_NAME=${HOSTNAME%%.*}"_ds1"
 vim-cmd hostsvc/datastore/rename ${DATASTORE_NAME} ${NEW_DATASTORE_NAME}
 
+# resignature VMFS to avoid conflicts
+ORIG_UUID=$(esxcli storage vmfs extent list | awk 'NR==3{print $2}')
+
+esxcli storage filesystem unmount
+esxcli storage vmfs snapshot resignature --volume-label=${NEW_DATASTORE_NAME}
+NEW_UUID=$(esxcli storage vmfs extent list | awk 'NR==3{print $2}')
+
+#get the new mount point 
+MOUNT_POINT=$(esxcli storage filesystem list | awk -v uuid=$NEW_UUID '{if ($3 == uuid) print $1}')
+
+# replace the old UUID in virtual machine files under the mount point
+find ${MOUNT_POINT} -regex '.*\.\(vmx\|vmdk\|vmsd\|vmsn\)' -exec sed -n "s/$ORIG_UUID/$NEW_UUID/gp" {} ';'
+
+
+
 echo "=== End of Post-Freeze ==="
 
 echo -e "\nCheck /root/ic-customization.log for details\n\n"
