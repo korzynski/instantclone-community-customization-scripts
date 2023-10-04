@@ -70,6 +70,7 @@ localcli network ip interface add -i vmk0 -p "Management Network"
 if [ ${NETWORK_TYPE} == "static" ]; then
     localcli network ip interface ipv4 set -i vmk0 -I ${IP_ADDRESS} -N ${NETMASK} -t static
     localcli network ip route ipv4 add -g ${GATEWAY} -n default
+	localcli network ip dns server add -s ${DNS}
 else
     localcli network ip interface ipv4 set -i vmk0 -t dhcp
 fi
@@ -86,6 +87,13 @@ sleep 15
 done
 esxcli storage core adapter rescan -a
 esxcli vsan network ip add -i vmk0
+
+# Rename datastore to avoid conflict on import
+# Find the current local datastore name/LABEL (Exclude all SAN HSV200 datastore)
+DATASTORE_NAME=$(esxcli storage vmfs extent list | awk 'NR==3{print $1}')
+NEW_DATASTORE_NAME=${HOSTNAME%%.*}"_ds1"
+vim-cmd hostsvc/datastore/rename ${DATASTORE_NAME} ${NEW_DATASTORE_NAME}
+
 echo "=== End of Post-Freeze ==="
 
 echo -e "\nCheck /root/ic-customization.log for details\n\n"
